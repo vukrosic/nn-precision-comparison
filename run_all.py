@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-precisions = ['fp16', 'bf16', 'fp8', 'fp4']
+precisions = ['fp16', 'bf16', 'fp8', 'fp4', 'fp4_bnb', 'fp4_sim']
 
 for precision in precisions:
     print(f"Running {precision.upper()}...")
@@ -17,4 +17,4 @@ for precision in precisions:
     else:
         print(f"{precision.upper()}: FAILED - {result.stderr.strip()}")
 
-print("\nGenerated: poly_fp16.gif, poly_bf16.gif, poly_fp8.gif, poly_fp4.gif")
+print("\nGenerated GIFs for all precision types")
