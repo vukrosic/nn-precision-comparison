@@ -26,12 +26,13 @@ def target_poly(x):
     return x**3 - 2*x**2 + x + 1
 
 torch.manual_seed(42)
-x_range = torch.linspace(-2, 2, 200).unsqueeze(1).to(device, dtype=torch.float16)
-y_true = target_poly(x_range.float()).to(torch.float16)
+x_range = torch.linspace(-2, 2, 200).unsqueeze(1).to(device)
+y_true = target_poly(x_range)
 
-model = PolyNet().to(device).half()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+model = PolyNet().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 criterion = nn.MSELoss()
+scaler = torch.cuda.amp.GradScaler()
 
 frames = []
 epochs = 1000
@@ -42,16 +43,20 @@ fig, ax = plt.subplots(figsize=(6, 4), dpi=80)
 
 for epoch in range(epochs):
     optimizer.zero_grad()
-    y_pred = model(x_range)
-    loss = criterion(y_pred, y_true)
-    loss.backward()
-    optimizer.step()
+    
+    with torch.cuda.amp.autocast(dtype=torch.float16):
+        y_pred = model(x_range.float())
+        loss = criterion(y_pred, y_true.float())
+    
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
     
     if epoch % save_every == 0:
         with torch.no_grad():
-            y_pred_cpu = y_pred.cpu().float().numpy()
-            x_cpu = x_range.cpu().float().numpy()
-            y_true_cpu = y_true.cpu().float().numpy()
+            y_pred_cpu = y_pred.cpu().numpy()
+            x_cpu = x_range.cpu().numpy()
+            y_true_cpu = y_true.cpu().numpy()
             
             ax.clear()
             ax.plot(x_cpu, y_true_cpu, 'g-', linewidth=2, label='Target')

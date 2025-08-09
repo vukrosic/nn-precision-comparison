@@ -25,39 +25,41 @@ class PolyNet(nn.Module):
 def target_poly(x):
     return x**3 - 2*x**2 + x + 1
 
-# FP4 simulation using quantization
+# FP4 simulation - quantize weights but keep gradients in FP32
 def quantize_fp4(tensor):
-    # Simulate FP4 by aggressive quantization
-    scale = tensor.abs().max() / 7.0  # 4-bit range: -7 to 7
-    quantized = torch.round(tensor / scale * 7.0).clamp(-7, 7)
-    return quantized * scale / 7.0
+    with torch.no_grad():
+        scale = tensor.abs().max() / 7.0 + 1e-8  # Avoid division by zero
+        quantized = torch.round(tensor / scale * 7.0).clamp(-7, 7)
+        return quantized * scale / 7.0
 
 torch.manual_seed(42)
 x_range = torch.linspace(-2, 2, 200).unsqueeze(1).to(device)
 y_true = target_poly(x_range)
 
 model = PolyNet().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)  # Lower LR for stability
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 criterion = nn.MSELoss()
 
 frames = []
 epochs = 1000
 save_every = 50
+quantize_every = 10  # Quantize every 10 steps to allow learning
 
 plt.style.use('dark_background')
 fig, ax = plt.subplots(figsize=(6, 4), dpi=80)
 
 for epoch in range(epochs):
     optimizer.zero_grad()
-    
-    # Quantize weights to simulate FP4
-    for param in model.parameters():
-        param.data = quantize_fp4(param.data)
-    
     y_pred = model(x_range)
     loss = criterion(y_pred, y_true)
     loss.backward()
     optimizer.step()
+    
+    # Quantize weights periodically (not every step)
+    if epoch % quantize_every == 0:
+        with torch.no_grad():
+            for param in model.parameters():
+                param.data = quantize_fp4(param.data)
     
     if epoch % save_every == 0:
         with torch.no_grad():
